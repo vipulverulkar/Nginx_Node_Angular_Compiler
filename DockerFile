@@ -1,0 +1,27 @@
+#FROM mcr.microsoft.com/windows/servercore:ltsc2019 
+FROM mcr.microsoft.com/windows/nanoserver
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+RUN mkdir app
+
+ADD https://nodejs.org/dist/v14.15.1/node-v14.15.1-x64.msi c:/app/node.msi
+
+RUN powershell -Command Start-Process c:/app/node.msi -Wait
+
+ENV NGINX_VERSION 1.18.0
+RUN Invoke-WebRequest -Uri https://nginx.org/download/nginx-$Env:NGINX_VERSION.zip -OutFile nginx.zip ; \
+    Expand-Archive nginx.zip -DestinationPath c:\app ; \
+    Remove-Item -Force nginx.zip ; \
+    Move-Item c:\app\nginx-* c:\app\nginx
+WORKDIR "/app"
+COPY . .
+RUN npm install -g @angular/cli
+RUN npm install --save-dev @angular-devkit/build-angular
+RUN NG build
+RUN Copy-Item -Path C:\app\dist\Code\* -Destination C:\app\nginx\html -Recurse
+
+WORKDIR "C:\app\nginx"
+
+
+EXPOSE 80 443
+CMD Start-Process -NoNewWindow -FilePath nginx.exe ; \
+Add-Content logs\access.log 'nginx started...' ; Get-Content -Wait logs\access.log
